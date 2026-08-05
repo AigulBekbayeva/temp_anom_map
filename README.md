@@ -3,7 +3,7 @@
 Интерактивная карта отклонений средней июльской температуры воздуха от нормы 1991–2020,
 1991–2026 гг., по реанализу ERA5.
 
-**Карта:** https://USERNAME.github.io/kz-temperature-anomaly/
+**Карта:** https://github.com/AigulBekbayeva/temp_anom_map/
 
 ![Аномалия июля](figures/anomaly_07_2026.png)
 
@@ -66,7 +66,7 @@ figures/                        картинки для README и публика
 
 1. Создать репозиторий и запушить содержимое этой папки.
 2. Settings → Pages → Source: *Deploy from a branch*, ветка `main`, папка `/docs`.
-3. Через минуту карта будет на `https://USERNAME.github.io/kz-temperature-anomaly/`.
+3. Через минуту карта будет на `https://github.com/AigulBekbayeva/temp_anom_map/`.
 
 Замените `USERNAME` в `README.md` и в футере `docs/index.html`.
 
