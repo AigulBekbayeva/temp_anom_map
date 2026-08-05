@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Аномалии июльской температуры — Казахстан и Центральная Азия</title>
+<meta name="description" content="Интерактивная карта аномалий июльской температуры по ERA5, 1991–2026, Казахстан и Центральная Азия.">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --ink:#14181d; --muted:#6b7480; --line:#e3e6ea; --bg:#fbfbfa;
+    --warm:#b6321f; --cool:#1f5f9e;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px; margin:0 auto; padding:28px 20px 56px}
+  header{margin-bottom:20px}
+  h1{font-size:clamp(21px,3vw,30px); line-height:1.2; margin:0 0 8px; letter-spacing:-.01em}
+  .sub{color:var(--muted); font-size:15px; line-height:1.55; max-width:70ch; margin:0}
+  #map{height:66vh; min-height:420px; border:1px solid var(--line); border-radius:10px; background:#eef1f4}
+  .leaflet-container{font:inherit}
+  .leaflet-tooltip.city{
+    background:rgba(255,255,255,.82); border:none; box-shadow:none; color:#14181d;
+    font-size:11px; font-weight:600; padding:0 3px;
+  }
+  .leaflet-tooltip.city::before{display:none}
+
+  .panel{
+    display:flex; flex-wrap:wrap; align-items:center; gap:14px 18px;
+    margin-top:14px; padding:14px 16px;
+    background:#fff; border:1px solid var(--line); border-radius:10px;
+  }
+  .yearbox{display:flex; align-items:baseline; gap:10px; min-width:170px}
+  .yearbox b{font-size:30px; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+  .yearbox span{font-size:13px; color:var(--muted)}
+  #slider{flex:1; min-width:200px; accent-color:#b6321f}
+  button{
+    font:inherit; font-size:14px; padding:7px 15px; cursor:pointer;
+    border:1px solid var(--line); border-radius:7px; background:#fff; color:var(--ink);
+  }
+  button:hover{border-color:#c3c8ce}
+  .mean{font-size:14px; color:var(--muted); font-variant-numeric:tabular-nums}
+  .mean b{color:var(--ink); font-size:16px}
+  .opts{display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; width:100%;
+        padding-top:12px; border-top:1px solid var(--line); font-size:13.5px; color:var(--muted)}
+  .opts label{display:flex; align-items:center; gap:7px}
+  select{font:inherit; font-size:13.5px; padding:5px 8px; border:1px solid var(--line);
+         border-radius:6px; background:#fff; color:var(--ink)}
+  #alpha{width:110px; accent-color:#6b7480}
+
+  .legend{display:flex; align-items:center; gap:10px; margin-top:12px; font-size:12.5px; color:var(--muted)}
+  .bar{height:12px; flex:1; max-width:420px; border-radius:3px; border:1px solid var(--line)}
+
+  .readout{
+    position:absolute; z-index:600; right:12px; top:12px;
+    background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:8px;
+    padding:9px 12px; font-size:13px; line-height:1.45; pointer-events:none;
+    min-width:150px; font-variant-numeric:tabular-nums;
+  }
+  .readout .v{font-size:19px; font-weight:600}
+  .maprel{position:relative}
+  footer{margin-top:24px; font-size:13px; color:var(--muted); line-height:1.6}
+  footer a{color:#1f5f9e}
+  .note{margin-top:18px; font-size:13.5px; color:var(--muted); line-height:1.65; max-width:75ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Аномалии июльской температуры: Казахстан и Центральная Азия</h1>
+    <p class="sub">Отклонение средней температуры воздуха на высоте 2 м за июль от нормы
+      <span id="baseTxt">1991–2020</span>. Реанализ ERA5, сетка <span id="stepTxt">1°</span>.
+      Двигайте ползунок по годам, наводите курсор на карту.</p>
+  </header>
+
+  <div class="maprel">
+    <div id="map"></div>
+    <div class="readout" id="readout">Наведите на карту</div>
+  </div>
+
+  <div class="panel">
+    <div class="yearbox"><b id="yearLbl">—</b><span>июль</span></div>
+    <input type="range" id="slider" min="0" max="0" value="0" step="1">
+    <button id="play">▶ Анимация</button>
+    <div class="mean">по региону: <b id="meanLbl">—</b></div>
+
+    <div class="opts">
+      <label>Палитра
+        <select id="palette">
+          <option value="heat">Тепловая (с нулём)</option>
+          <option value="rdbu">Сине-красная</option>
+          <option value="turbo">Turbo (радужная)</option>
+        </select>
+      </label>
+      <label>Прозрачность поля
+        <input type="range" id="alpha" min="35" max="100" value="82" step="1">
+      </label>
+      <label><input type="checkbox" id="showBorders" checked> Границы и озёра</label>
+      <label><input type="checkbox" id="showCities" checked> Города</label>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span id="lgMin">−4 °C</span>
+    <div class="bar" id="lgBar"></div>
+    <span id="lgMax">+4 °C</span>
+    <span style="margin-left:6px">холоднее нормы → теплее нормы</span>
+  </div>
+
+  <p class="note" id="note"></p>
+
+  <footer>
+    Данные: ERA5 (Copernicus Climate Change Service) через <a href="https://open-meteo.com/">Open-Meteo</a>.
+    Границы и озёра: <a href="https://www.naturalearthdata.com/">Natural Earth</a>.
+    Код и методика: <a href="https://github.com/AigulBekbayeva/temp_anom_map">github.com/AigulBekbayeva/temp_anom_map</a>.
+    Подложка © <a href="https://carto.com/attributions">CARTO</a>, © OpenStreetMap contributors.
+  </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ── палитры ───────────────────────────────────────────────────────────
+  // heat  — расходящаяся, с нейтральным нулём: холоднее нормы синим, теплее жёлто-красным
+  // rdbu  — классическая ColorBrewer RdBu_r
+  // turbo — радужная, как на тепловых картах; нуль визуально не выделен
+  const PALETTES = {
+    heat: [
+      [0.00, [ 26,  42, 110]], [0.14, [ 32,  96, 190]], [0.28, [ 60, 168, 224]],
+      [0.42, [162, 214, 235]], [0.50, [243, 243, 238]], [0.58, [253, 226, 150]],
+      [0.72, [250, 176,  52]], [0.86, [232,  96,  28]], [1.00, [150,  18,  22]]
+    ],
+    rdbu: [
+      [0.000, [ 33,  70, 130]], [0.125, [ 55, 113, 173]], [0.250, [104, 160, 202]],
+      [0.375, [166, 202, 224]], [0.500, [246, 246, 244]], [0.625, [246, 186, 155]],
+      [0.750, [226, 127,  96]], [0.875, [190,  62,  52]], [1.000, [128,  20,  32]]
+    ],
+    turbo: [
+      [0.00, [ 48,  18,  59]], [0.10, [ 65,  69, 171]], [0.20, [ 70, 117, 237]],
+      [0.30, [ 57, 162, 252]], [0.40, [ 27, 207, 212]], [0.50, [ 36, 236, 166]],
+      [0.60, [ 97, 252, 108]], [0.70, [164, 252,  59]], [0.78, [223, 224,  52]],
+      [0.86, [253, 165,  45]], [0.93, [235,  85,  15]], [1.00, [122,   4,   3]]
+    ]
+  };
+
+  let PAL = "heat";
+
+  function ramp(t, stops) {
+    stops = stops || PALETTES[PAL];
+    t = Math.max(0, Math.min(1, t));
+    for (let i = 1; i < stops.length; i++) {
+      if (t <= stops[i][0]) {
+        const [t0, c0] = stops[i - 1], [t1, c1] = stops[i];
+        const f = (t - t0) / (t1 - t0);
+        return [0, 1, 2].map(k => Math.round(c0[k] + f * (c1[k] - c0[k])));
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+
+  const mercY = lat => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+  const invMercY = y => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180 / Math.PI;
+  const $ = id => document.getElementById(id);
+
+  const map = L.map("map", { minZoom: 3, maxZoom: 9 });
+
+  // порядок слоёв: подложка(200) → поле(400) → границы(620) → подписи(650)
+  map.createPane("borders");
+  map.getPane("borders").style.zIndex = 620;
+  map.getPane("borders").style.pointerEvents = "none";
+  map.createPane("labels");
+  map.getPane("labels").style.zIndex = 650;
+  map.getPane("labels").style.pointerEvents = "none";
+
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+    { attribution: "&copy; OpenStreetMap, &copy; CARTO | ERA5 via Open-Meteo", maxZoom: 19 }).addTo(map);
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png",
+    { pane: "labels", maxZoom: 19 }).addTo(map);
+
+  const CITIES = [
+    ["Астана", 51.13, 71.43], ["Алматы", 43.24, 76.89], ["Караганда", 49.81, 73.10],
+    ["Актобе", 50.28, 57.17], ["Атырау", 47.09, 51.92], ["Ташкент", 41.30, 69.24],
+    ["Бишкек", 42.87, 74.60], ["Душанбе", 38.56, 68.79], ["Ашхабад", 37.95, 58.38]
+  ];
+
+  let D, meta, overlay = null, VMAX = 4, timer = null;
+  const borderLayers = L.layerGroup(), cityLayer = L.layerGroup();
+
+  fetch("data/anomalies.json")
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(init)
+    .catch(e => {
+      $("readout").textContent = "Не загрузился data/anomalies.json";
+      console.error("Данные не загрузились. Если открыли файл напрямую (file://), " +
+                    "запустите локальный сервер: python -m http.server 8000", e);
+    });
+
+  // ── границы поверх поля ───────────────────────────────────────────────
+  function loadBorders() {
+    const renderer = L.canvas({ pane: "borders", padding: 0.3 });
+    fetch("data/borders.geojson")
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(gj => {
+        // светлая подложка под линией — чтобы контур читался и на тёмно-синем, и на бордовом
+        L.geoJSON(gj, { pane: "borders", renderer, interactive: false,
+          style: { color: "#ffffff", weight: 3.0, opacity: 0.75, fill: false }
+        }).addTo(borderLayers);
+        L.geoJSON(gj, { pane: "borders", renderer, interactive: false,
+          style: f => f.properties.kind === "lake"
+            ? { color: "#123b57", weight: 0.9, opacity: 0.85, fill: false }
+            : { color: "#14181d", weight: 1.3, opacity: 0.9, fill: false }
+        }).addTo(borderLayers);
+        borderLayers.addTo(map);
+      })
+      .catch(err => console.warn("borders.geojson не загрузился:", err));
+  }
+
+  function init(json) {
+    D = json; meta = json.meta;
+
+    $("baseTxt").textContent = meta.base[0] + "–" + meta.base[1];
+    $("stepTxt").textContent = meta.step + "°";
+
+    const all = [];
+    D.years.forEach(y => D.values[y].forEach(v => { if (v !== null) all.push(Math.abs(v)); }));
+    all.sort((a, b) => a - b);
+    VMAX = Math.max(1, Math.ceil(all[Math.floor(all.length * 0.99)] * 2) / 2);
+    $("lgMin").textContent = "−" + VMAX + " °C";
+    $("lgMax").textContent = "+" + VMAX + " °C";
+    drawLegend();
+
+    const bounds = L.latLngBounds([meta.lat_min, meta.lon_min], [meta.lat_max, meta.lon_max]);
+    map.fitBounds(bounds, { padding: [8, 8] });
+    map.setMaxBounds(bounds.pad(0.6));
+
+    loadBorders();
+
+    CITIES.forEach(([n, la, lo]) => {
+      L.circleMarker([la, lo], {
+        pane: "labels", radius: 3.2, color: "#14181d", weight: 1.3,
+        fillColor: "#fff", fillOpacity: 1
+      }).bindTooltip(n, { permanent: true, direction: "right", className: "city" })
+        .addTo(cityLayer);
+    });
+    cityLayer.addTo(map);
+
+    const sl = $("slider");
+    sl.max = D.years.length - 1;
+    sl.value = D.years.length - 1;
+    sl.addEventListener("input", () => draw(+sl.value));
+
+    $("play").addEventListener("click", toggle);
+    $("palette").addEventListener("change", e => {
+      PAL = e.target.value; drawLegend(); draw(+$("slider").value);
+    });
+    $("alpha").addEventListener("input", () => draw(+$("slider").value));
+    $("showBorders").addEventListener("change", e =>
+      e.target.checked ? borderLayers.addTo(map) : map.removeLayer(borderLayers));
+    $("showCities").addEventListener("change", e =>
+      e.target.checked ? cityLayer.addTo(map) : map.removeLayer(cityLayer));
+
+    map.on("mousemove", hover);
+    map.on("mouseout", () => { $("readout").textContent = "Наведите на карту"; });
+
+    $("note").textContent =
+      "Норма считается по " + (meta.base[1] - meta.base[0] + 1) + " годам (" +
+      meta.base[0] + "–" + meta.base[1] + "), это стандартный базовый период ВМО. " +
+      "Значение в точке — среднесуточная температура июля, осреднённая за месяц, минус норма " +
+      "для той же ячейки сетки; между узлами поле интерполировано билинейно, поэтому у городов " +
+      "значение может на пару десятых отличаться от значения ближайшего узла. Источник: " +
+      meta.source + ".";
+
+    draw(D.years.length - 1);
+  }
+
+  function drawLegend() {
+    $("lgBar").style.background = "linear-gradient(to right," +
+      PALETTES[PAL].map(s => "rgb(" + ramp(s[0]).join(",") + ") " + (s[0] * 100) + "%").join(",") + ")";
+  }
+
+  function sample(vals, lat, lon) {
+    const fi = (lat - meta.lat_min) / meta.step;
+    const fj = (lon - meta.lon_min) / meta.step;
+    if (fi < 0 || fj < 0 || fi > meta.nlat - 1 || fj > meta.nlon - 1) return null;
+    const i0 = Math.floor(fi), j0 = Math.floor(fj);
+    const i1 = Math.min(i0 + 1, meta.nlat - 1), j1 = Math.min(j0 + 1, meta.nlon - 1);
+    const di = fi - i0, dj = fj - j0;
+    const q = [
+      [vals[i0 * meta.nlon + j0], (1 - di) * (1 - dj)],
+      [vals[i0 * meta.nlon + j1], (1 - di) * dj],
+      [vals[i1 * meta.nlon + j0], di * (1 - dj)],
+      [vals[i1 * meta.nlon + j1], di * dj]
+    ];
+    let s = 0, w = 0;
+    for (const [v, k] of q) if (v !== null) { s += v * k; w += k; }
+    return w > 0.35 ? s / w : null;
+  }
+
+  function draw(idx) {
+    const year = D.years[idx];
+    const vals = D.values[year];
+    const alpha = Math.round(+$("alpha").value * 2.55);
+
+    $("yearLbl").textContent = year;
+    const rm = D.region_mean[year], el = $("meanLbl");
+    el.textContent = (rm > 0 ? "+" : "") + rm.toFixed(2) + " °C";
+    el.style.color = rm >= 0 ? "var(--warm)" : "var(--cool)";
+
+    const W = meta.nlon * 12;
+    const yTop = mercY(meta.lat_max), yBot = mercY(meta.lat_min);
+    const H = Math.round(W * (yTop - yBot) / ((meta.lon_max - meta.lon_min) * Math.PI / 180));
+
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    const img = ctx.createImageData(W, H);
+
+    for (let py = 0; py < H; py++) {
+      const lat = invMercY(yTop - (py + 0.5) / H * (yTop - yBot));
+      for (let px = 0; px < W; px++) {
+        const lon = meta.lon_min + (px + 0.5) / W * (meta.lon_max - meta.lon_min);
+        const v = sample(vals, lat, lon);
+        const o = (py * W + px) * 4;
+        if (v === null) { img.data[o + 3] = 0; continue; }
+        const c = ramp((v + VMAX) / (2 * VMAX));
+        img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2];
+        img.data[o + 3] = alpha;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+
+    const bounds = [[meta.lat_min, meta.lon_min], [meta.lat_max, meta.lon_max]];
+    if (overlay) map.removeLayer(overlay);
+    overlay = L.imageOverlay(cv.toDataURL(), bounds, { interactive: false }).addTo(map);
+  }
+
+  function hover(e) {
+    const year = D.years[+$("slider").value];
+    const v = sample(D.values[year], e.latlng.lat, e.latlng.lng);
+    const box = $("readout");
+    if (v === null) { box.textContent = "вне области"; return; }
+    box.innerHTML =
+      '<div class="v" style="color:' + (v >= 0 ? "var(--warm)" : "var(--cool)") + '">' +
+      (v > 0 ? "+" : "") + v.toFixed(1) + " °C</div><div>июль " + year + "</div>" +
+      "<div style='color:var(--muted)'>" + e.latlng.lat.toFixed(1) + "° с.ш., " +
+      e.latlng.lng.toFixed(1) + "° в.д.</div>";
+  }
+
+  function toggle() {
+    const btn = $("play"), sl = $("slider");
+    if (timer) { clearInterval(timer); timer = null; btn.textContent = "▶ Анимация"; return; }
+    btn.textContent = "■ Стоп";
+    timer = setInterval(() => {
+      const i = (+sl.value + 1) % D.years.length;
+      sl.value = i; draw(i);
+    }, 420);
+  }
+})();
+</script>
+</body>
+</html>

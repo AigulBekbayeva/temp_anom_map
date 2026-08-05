@@ -1,0 +1,12 @@
+# кэш загрузок и промежуточные результаты
+data/
+output/
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+.DS_Store
+
+# но данные для веб-карты нужны в репозитории
+!docs/data/
+!docs/data/anomalies.json
