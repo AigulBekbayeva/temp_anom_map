@@ -3,7 +3,7 @@
 Интерактивная карта отклонений средней июльской температуры воздуха от нормы 1991–2020,
 1991–2026 гг., по реанализу ERA5.
 
-**Карта:** https://github.com/AigulBekbayeva/temp_anom_map/
+**Карта:** https://aigulbekbayeva.github.io/temp_anom_map/ 
 
 ![Аномалия июля](figures/anomaly_07_2026.png)
 
